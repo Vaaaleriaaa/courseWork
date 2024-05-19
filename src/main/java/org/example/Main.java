@@ -7,7 +7,7 @@ public class Main {
         try(BufferedWriter out = new BufferedWriter(new FileWriter(folder + "RESULTS.txt"))) {
             for (int i=0; i<30; i++) {
                 out.write("T" + i + ": ");
-                AssignmentProblem.generateAssignmentProblem(20, new File(folder + "t" + i + ".txt"));
+                //AssignmentProblem.generateAssignmentProblem(20, new File(folder + "t" + i + ".txt"));
                 AssignmentProblem assignmentProblem = new AssignmentProblem(new File(folder + "t" + i + ".txt"));
                 LocalSearch lc = new LocalSearch(assignmentProblem);
                 lc.localSearch(out);
@@ -15,6 +15,7 @@ public class Main {
                 out.newLine();
             }
         }catch(IOException e) { System.out.println(e.getMessage()); }
+        System.out.println("END!");
 
         // new change
 
