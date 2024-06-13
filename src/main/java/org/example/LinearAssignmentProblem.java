@@ -3,13 +3,14 @@ import java.io.*;
 import java.util.*;
 
 // Задача о назначении
-public class AssignmentProblem {
-    public int n; // количество должностей и работников
+public class LinearAssignmentProblem /*extends AssignmentProblem*/ {
+    private int n; // количество зданий и цехов
     public int[][] costArray; // матрица стоимости
     public List<Integer> pi; // оптимальное решение
     public int fPi; // значение целевой функции при оптимальном решении
 
-    public AssignmentProblem(File file){
+    // загрузка задачи из файла
+    public LinearAssignmentProblem(File file){
         try(Scanner scanner = new Scanner(file)) {
             n = scanner.nextInt();
             if (n <= 0) {
@@ -38,6 +39,7 @@ public class AssignmentProblem {
         return f;
     }
 
+    // генерация задачи о назначении
     public static void generateAssignmentProblem(){
         System.out.println("Генерация случайно задачи о назначении.\nВведите название файла, в который сохранить условие задачи: ");
         Scanner s = new Scanner(System.in);
@@ -59,6 +61,7 @@ public class AssignmentProblem {
         System.out.println("Готово!");
     }
 
+    // сохранение задачи о назначениях в файл
     public static void generateAssignmentProblem(int n, File file){
         try(BufferedWriter out = new BufferedWriter(new FileWriter(file))) {
             out.write(Integer.toString(n));
@@ -73,5 +76,33 @@ public class AssignmentProblem {
         }catch(IOException e) { System.out.println(e.getMessage()); }
     }
 
+    public int getN() {
+        return n;
+    }
+
+    // построим начальное решение из максимальных элементов в столбцах(столбцы не повторяются)
+    public ArrayList<Integer> generateSmartStart(){
+        ArrayList<Integer> pi = new ArrayList<>(n);
+        for (int i=0; i<n; i++) {
+            int elemetAdd = costArray[i][0];
+            Integer indexElementAdd = -1;
+            for (int k=0; k<n; k++){
+                if (elemetAdd > costArray[i][k]){
+                    elemetAdd = costArray[i][k];
+                }
+            }
+
+            for (int j=0; j<n; j++){
+                if (!pi.contains(j)) {
+                    if (costArray[i][j] > elemetAdd) {
+                        elemetAdd = costArray[i][j];
+                        indexElementAdd = j;
+                    }
+                }
+            }
+            pi.add(i, indexElementAdd);
+        }
+        return pi;
+    }
 }
 

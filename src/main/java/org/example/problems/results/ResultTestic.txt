@@ -1,2 +1,0 @@
-117 [] invert
-122 [] shuffle
