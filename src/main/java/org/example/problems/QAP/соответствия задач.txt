@@ -1,0 +1,16 @@
+Задачи взяты с сайта: https://coral.ise.lehigh.edu/data-sets/qaplib/qaplib-problem-instances-and-solutions/#SV
+
+qt0 - Chr20a
+qt1 - Chr20b
+qt2 - Chr20c
+
+qt3 - Had20
+
+qt4 - Nug20
+
+qt5 - Rou20
+
+qt6 - Scr20
+
+qt7 - Tai20a
+qt8 - Tai20b
