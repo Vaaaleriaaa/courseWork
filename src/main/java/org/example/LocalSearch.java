@@ -4,7 +4,7 @@ import java.util.*;
 
 public class LocalSearch {
 
-    public LinearAssignmentProblem problem; // конкретная задача на МАКСИМУМ
+    public AbstractAssignmentProblem problem; // конкретная задача
     private ArrayList<Integer> pi; // текущее решение
     private ArrayList<Integer> recPi; // решение рекорда
     public int rec; // рекорд, которого мы достигли
@@ -17,12 +17,17 @@ public class LocalSearch {
     private ArrayList<Integer> sum; // количества всех применений окрестностей
 
     private double errorRate; // погрешность
-    public int minRecPi = 1000000; // минимальное значение функции
+    public int minRecPi; // минимальное значение функции ПОДХОДИТ ЕСЛИ ЗАДАЧА НА МИНИМУМ!!!
 
     // конструктор поиска
-    public LocalSearch(LinearAssignmentProblem problem) {
+    public LocalSearch(AbstractAssignmentProblem problem) {
         //System.out.println("LocalSearchKonstructor");
         this.problem = problem;
+        if (problem.getMax()){
+            minRecPi = 0;
+        } else if (!problem.getMax()) {
+            minRecPi = 1000000;
+        }
         recPi = new ArrayList<>();
         pi = new ArrayList<>();
         wins = new ArrayList<>();
@@ -92,7 +97,9 @@ public class LocalSearch {
     private void processPi(int n){
         //System.out.println("processPi");
         if (n>5 || n<0) { throw new IllegalArgumentException("Окрестность с таким номером не существует"); }
-        if (problem.function(pi) > rec){
+        // если найденное решение лучше рекорда
+        if ( (problem.function(pi) > rec && problem.getMax() ) ||
+                (problem.function(pi) < rec && problem.getMax() ) ){
             updateRec();
             Integer change = wins.get(n) +1;
             wins.set(n, change);
@@ -102,7 +109,9 @@ public class LocalSearch {
                 stepSuccsess = step;
             }
         }
-        if (problem.function(pi) < rec){
+        // если найденное решение хуже рекорда
+        if ( (problem.function(pi) < rec && problem.getMax() ) ||
+                (problem.function(pi) > rec && problem.getMax() ) ){
             Integer change = sum.get(n) + 1;
             sum.set(n, change);
         }
@@ -174,6 +183,10 @@ public class LocalSearch {
             pi = insert(this.pi);
             processPi(0);
         }
+
+
+
+
 
     }
 
