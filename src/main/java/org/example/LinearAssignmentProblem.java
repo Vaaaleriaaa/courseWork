@@ -1,4 +1,5 @@
 package org.example;
+import com.google.ortools.*;
 import com.google.ortools.Loader;
 import com.google.ortools.linearsolver.MPConstraint;
 import com.google.ortools.linearsolver.MPObjective;
@@ -14,6 +15,11 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
     public int[][] costArray; // матрица стоимости
     public List<Integer> pi; // оптимальное решение
     public boolean max = true; // временный костыль
+
+
+    public long wall_time; // время, за которое solver нашел решение
+    public MPSolver.ResultStatus resultStatus; // статус найденного решения(допустимое, оптимальное, задача некорректная и т.д. )
+
 
     // Загрузка задачи из файла
     public LinearAssignmentProblem(File file){
@@ -127,14 +133,14 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
 
 
     // Решение задачи через библиотеку OrTools
-    public void solveTask(){
+    public void solveTask(String solver_name){
         Loader.loadNativeLibraries();
 
 
         // Объявим решателем SCIP.
         // Есть еще несколько разных решателей, например, альтернативный PDLP, или GLOP для линейного программирования
         // Про решатели: https://developers.google.com/optimization/lp/lp_advanced?hl=ru
-        MPSolver solver = MPSolver.createSolver("SCIP");
+        MPSolver solver = MPSolver.createSolver(solver_name);
         if (solver == null) {
             System.out.println("Could not create solver SCIP");
             return;
@@ -176,7 +182,8 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
         objective.setMaximization();
 
         // Вызов решателя
-        MPSolver.ResultStatus resultStatus = solver.solve();
+        resultStatus = solver.solve();
+        wall_time = solver.wallTime() / 1000;
 
         // Выведем решение
         // Check that the problem has a feasible solution.
@@ -199,5 +206,6 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
             System.err.println("No solution found.");
         }
     }
+
 }
 

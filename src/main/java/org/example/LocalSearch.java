@@ -17,7 +17,7 @@ public class LocalSearch {
     private ArrayList<Integer> sum; // количества всех применений окрестностей
 
     private double errorRate; // погрешность
-    public int minRecPi; // минимальное значение функции ПОДХОДИТ ЕСЛИ ЗАДАЧА НА МИНИМУМ!!!
+    public int minRecPi; // минимальное значение функции
 
     // конструктор поиска
     public LocalSearch(AbstractAssignmentProblem problem) {

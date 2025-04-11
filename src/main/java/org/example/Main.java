@@ -4,12 +4,81 @@ import org.example.problemsVolumeLimit.AssignmentProblemVolumeLimit;
 import org.example.problemsVolumeLimit.MathModelVolumeLimit;
 
 import java.io.*;
+import java.util.*;
 
 public class Main {
     public static void main(String[] args) throws IOException {
 
-        String folder = "D:\\ярлыкиРабочегоСтола\\univer\\3course\\courseWork\\localSearch\\src\\main\\java\\org\\example\\";
-        LinearAssignmentProblem.generateAssignmentProblem(10, new File(folder + "t0_10.txt"));
+        String folder = "D:\\ярлыкиРабочегоСтола\\univer\\3course\\courseWork\\localSearch\\src\\main\\java\\org\\example\\linearANDConfComf";
+        HashSet<String> solvers = new HashSet<>();
+        Collections.addAll(solvers, "GLOP", "PDLP"); // не запустились: "GLPK", "SCIP", "OSQP", "CP-SAT"
+        // странно работает: "HiGHS"
+
+        // Перебираем разные размерности задачи
+        for (int n = 35; n < 81; n += 5) {
+            try (BufferedWriter out = new BufferedWriter(new FileWriter(folder + "\\differntColvers\\LvsCC_" + n + ".txt"))) {
+                out.write( "Solver      Percent_conflict     Time_linear    Status_solve_linear     Time_confComb    Status_solve_confComb\n");
+                // Количество задач
+                for (int i = 0; i < 10; i++) {
+                    int conflictPercent = (new Random()).nextInt(25, 31); // вернет случайное целое число от 25(включительно) до 31(исключительно)
+                    File file = new File(folder + "\\differntColvers\\tcc_" + i + "_n_" + n + "_" + conflictPercent + "p.txt");
+                    AssignmentProblemConflictCombination.generateAssignmentProblem(n, true, conflictPercent, file);
+                    LinearAssignmentProblem model_linear = new LinearAssignmentProblem(file);
+
+                    for(String solver_name: solvers) {
+                        model_linear.solveTask(solver_name);
+
+                        AssignmentProblemConflictCombination model_conf_comb = new AssignmentProblemConflictCombination(file);
+                        model_conf_comb.solveTask(solver_name);
+
+                        out.write(solver_name + "     " + Integer.toString(conflictPercent) + "     " + Long.toString(model_linear.wall_time) + "      " + model_linear.resultStatus);
+
+                        out.write("     " + Long.toString(model_conf_comb.wall_time) + "      " + model_conf_comb.resultStatus);
+
+                        out.newLine();
+                    }
+                }
+            } catch (IOException e) {
+                System.out.println(e.getMessage());
+            }
+
+        }
+
+
+
+
+            /*
+            for (int i = 0; i< 30; i++) {
+                int conflictPercent = (new Random()).nextInt(50, 61); // вернет случайное целое число от 25(включительно) до 31(исключительно)
+                File file = new File(folder + "\\confComb\\tcc_" + 2*i + "_n" + n + "_" + conflictPercent + "p_v2.txt");
+                AssignmentProblemConflictCombination.generateAssignmentProblem(n, true, conflictPercent, file);
+                AssignmentProblemConflictCombination model = new AssignmentProblemConflictCombination(file);
+                model.solveTask();
+                out.write(Integer.toString(conflictPercent) + "     " + Long.toString(model.wall_time) + "      " + model.resultStatus);
+                out.newLine();
+            }
+
+
+            for (int i = 0; i< 10; i++) {
+                int conflictPercent = (new Random()).nextInt(80, 91); // вернет случайное целое число от 25(включительно) до 31(исключительно)
+                File file = new File(folder + "\\confComb\\tcc_" + 3*i + "_n" + n + "_" + conflictPercent + "p_v2.txt");
+                AssignmentProblemConflictCombination.generateAssignmentProblem(n, true, conflictPercent, file);
+                AssignmentProblemConflictCombination model = new AssignmentProblemConflictCombination(file);
+                model.solveTask();
+                out.write(Integer.toString(conflictPercent) + "     " + Long.toString(model.wall_time) + "      " + model.resultStatus);
+                out.newLine();
+
+            }
+
+             */
+        //}catch(IOException e) { System.out.println(e.getMessage()); }
+
+        /*
+        AssignmentProblemConflictCombination model = new AssignmentProblemConflictCombination(new File("D:\\ярлыкиРабочегоСтола\\univer\\3course\\courseWork\\localSearch\\src\\main\\java\\org\\example\\problemsConfComb\\tcc1.txt"));
+        List<Integer> list = new ArrayList<>();
+        Collections.addAll(list, 0, 4, 1, 2, 3);
+        */
+
 
         /*LinearAssignmentProblem linearAssignmentProblem = new LinearAssignmentProblem(new File(folder + "t0_10.txt"));
         System.out.println("Решаем задачу t1!!!");

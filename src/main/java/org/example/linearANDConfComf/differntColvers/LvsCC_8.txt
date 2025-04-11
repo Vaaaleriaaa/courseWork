@@ -1,0 +1,7 @@
+Solver      Percent_conflict     Time_linear    Status_solve_linear     Time_confComb    Status_solve_confComb
+GLOP     27     0      OPTIMAL     0      OPTIMAL
+PDLP     27     0      OPTIMAL     0      OPTIMAL
+GLOP     25     0      OPTIMAL     0      OPTIMAL
+PDLP     25     0      OPTIMAL     0      OPTIMAL
+GLOP     29     0      OPTIMAL     0      OPTIMAL
+PDLP     29     0      OPTIMAL     0      OPTIMAL
