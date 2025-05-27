@@ -1,4 +1,4 @@
-package org.example.problemsConfComb;
+package org.example;
 
 import com.google.ortools.Loader;
 import com.google.ortools.*;
@@ -17,6 +17,8 @@ import java.util.*;
 
 public class AssignmentProblemConflictCombination extends AbstractAssignmentProblem {
     public int[][] costArray; // матрица стоимости
+
+    public int conflictPercent; // количество конфликтных работников и работ в процентах
     private int nw; // количество множеств конфликтных работников
     private int np; // количество множеств связанных работ
     private Set<Integer>[] setsWorker; // множества конфликтных работников
@@ -25,19 +27,18 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
     private int punishment = 500; // при проверке ограничений, каждая конфликтующая пара считается дважды, поэтому наказание будет в 2 раза больше, т.е. 1000
 
 
-    private long time_limit_milliseconds = 1800000 * 4; // 1800000 - 30 минут, 7200000 - 2 часа
+    public long time_limit_milliseconds = 1800000 * 4; // 1800000 - 30 минут, 7200000 - 2 часа
     public long wall_time; // время, за которое solver нашел решение
-    public MPSolver.ResultStatus resultStatus; // статус найденного решения(допустимое, оптимальное, задача некорректная и т.д. )
+
+    public MPSolver.ResultStatus resultStatus; // Статус найденного решения(допустимое, оптимальное, задача некорректная и т.д. )
 
     // Создает задачу о назначении по введенному значению n, max, conflictPercent и file
     public static void generateAssignmentProblem(int n, boolean max,  int conflictPercent, File file){
         Scanner s = new Scanner(System.in);
         try(BufferedWriter out = new BufferedWriter(new FileWriter(file))) {
             // Записываем количество должностей и работников
-            out.write(Integer.toString(n));
-            out.write(" ");
+            out.write(Integer.toString(n) + " " + Boolean.toString(max) + " " + conflictPercent);
 
-            out.write(Boolean.toString(max));
             out.newLine(); out.newLine();
 
             // Генерируем и записываем значения матрицы стоимости
@@ -65,16 +66,25 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
             // Генерируем и записываем значения множеств конфликтных работников
             // Создаем массив из множеств конфликтных работников
             Set<Integer>[] setsWorker = new Set[nw];
+            Set<Set<Integer>> uniqueSets = new HashSet<>(); // Вспомогательное множество для отслеживания уникальных множеств
+            Random random = new Random(); // Единый генератор случайных чисел
             for (int i = 0; i < nw; i++) {
-                // Запишем длину множества (пока что конфликтные множества - это пары)
-                out.write(2 + " ");
-                // Создаем каждое множество и добавляем в него по 2 работника
-                setsWorker[i] = new HashSet<>();
-                while (setsWorker[i].size() < 2) {
-                    setsWorker[i].add((new Random()).nextInt(n));
-                }
-                // Записываем получившиеся множество в файл
-                for (int item: setsWorker[i]){
+                Set<Integer> tempSet;
+                do {
+                    tempSet = new HashSet<>();
+                    // Генерируем 2 уникальных элемента
+                    while (tempSet.size() < 2) {
+                        tempSet.add(random.nextInt(n));
+                    }
+                } while (uniqueSets.contains(tempSet)); // Повторяем, если множество уже существует
+
+                // Сохраняем уникальное множество
+                uniqueSets.add(tempSet);
+                setsWorker[i] = tempSet;
+
+                // Записываем в файл
+                out.write(2 + " "); // Длина множества
+                for (int item : tempSet) {
                     out.write(item + " ");
                 }
                 out.newLine();
@@ -85,15 +95,22 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
             // Создаем массив из множеств связанных работ
             Set<Integer>[] setsPost = new Set[np];
             for (int i = 0; i < np; i++) {
-                // Запишем длину множества (пока что конфликтные множества - это пары)
-                out.write(2 + " ");
-                // Создаем каждое множество и добавляем в него по 2 работника
-                setsPost[i] = new HashSet<>();
-                while (setsPost[i].size() < 2) {
-                    setsPost[i].add((new Random()).nextInt(n));
-                }
-                // Записываем получившиеся множество в файл
-                for (int item: setsPost[i]){
+                Set<Integer> tempSet;
+                do {
+                    tempSet = new HashSet<>();
+                    // Генерируем 2 уникальных элемента
+                    while (tempSet.size() < 2) {
+                        tempSet.add(random.nextInt(n));
+                    }
+                } while (uniqueSets.contains(tempSet)); // Повторяем, если множество уже существует
+
+                // Сохраняем уникальное множество
+                uniqueSets.add(tempSet);
+                setsPost[i] = tempSet;
+
+                // Записываем в файл
+                out.write(2 + " "); // Длина множества
+                for (int item : tempSet) {
                     out.write(item + " ");
                 }
                 out.newLine();
@@ -111,6 +128,8 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
             }
 
             max = scanner.nextBoolean();
+            conflictPercent = scanner.nextInt();
+
             costArray = new int[n][n];
             for (int i = 0; i < n; i++) {
                 for (int j = 0; j < n; j++) {
@@ -159,6 +178,7 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
         return f;
     }
 
+    // Создает начальное решение из максимальных элементов в столбцах(столбцы не повторяются)
     @Override
     public ArrayList<Integer> generateSmartStart() {
         return null;
@@ -189,21 +209,25 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
             }
         }
 
-        return punishment;
+        return punish;
+    }
+
+    @Override
+    public ArrayList<Integer> generateSolverStart(){
+        // Вызов решателя
+        return solveTask("SCIP", 1000); // Запускаем на секунду
+
     }
 
     // Решим задачу используя библиотеку OrTools
-    public void solveTask(String solver_name){
+    public ArrayList<Integer> solveTask(String solver_name, long time){
+        System.out.println("solveTask");
         Loader.loadNativeLibraries();   // Загружает нативные библиотеки, необходимые для OR-Tools.
 
-
-        // Объявим решателем SCIP.
-        // Есть еще несколько разных решателей, например, альтернативный PDLP, или GLOP для линейного программирования
-        // Про решатели: https://developers.google.com/optimization/lp/lp_advanced?hl=ru
-        MPSolver solver = MPSolver.createSolver("SCIP");    // Создает решатель SCIP.
+        MPSolver solver = MPSolver.createSolver(solver_name);    // Создает решатель SCIP.
         if (solver == null) {   // Проверяет, удалось ли создать решатель.
-            System.out.println("Could not create solver SCIP");     // Выводит сообщение об ошибке, если не удалось.
-            return;     // Завершает программу.
+            System.out.println("Could not create solver" + solver_name);     // Выводит сообщение об ошибке, если не удалось.
+            return null;     // Завершает программу.
         }
 
         // Создадим переменные
@@ -247,8 +271,8 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
                                 //Создаем ограничение, которое гарантирует, что не может быть назначено сразу два работника из конфликтной группы на две связанные должности.
                                 MPConstraint constraint = solver.makeConstraint(0, 1, ""); // Меньше или равно 1
 
-                                constraint.setCoefficient(x[itemW1][itemP1], 1); // Если первый работник назначен на первую из связанных должностей
-                                constraint.setCoefficient(x[itemW2][itemP2], 1); // ...и второй работник назначен на вторую из связанных должностей
+                                constraint.setCoefficient(x[itemW1][itemP1], 1); // Если этот работник назначен на эту должность
+                                constraint.setCoefficient(x[itemW2][itemP2], 1); // ...и этот работник назначен на эту должность
 
                                 //System.out.println("Ограничение: " + itemW1 + " на " + itemP1 + " И " + itemW2 + " на " + itemP2 + " <= 1");
                             }
@@ -267,7 +291,7 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
         }
 
         // Фиксируем то, что мы решаем задачу на минимум или максимум
-        if (max == false) {
+        if (!max) {
             objective.setMinimization();
         }
         else{
@@ -275,9 +299,25 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
         }
 
         // Вызов решателя
-        solver.setTimeLimit(time_limit_milliseconds);
+        solver.setTimeLimit(time);
+
         resultStatus = solver.solve();
-        wall_time = solver.wallTime() / 1000;
+        wall_time = solver.wallTime();
+        decisionSolverOrTools = objective.value();
+
+        ArrayList<Integer> pi = new ArrayList<>();
+
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                if (x[i][j].solutionValue() > 0.5) {
+                    pi.add(j);
+                }
+            }
+        }
+
+
+
+        return pi;
 
         /*
         // Выведем решение
@@ -299,5 +339,7 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
          */
 
     }
+
+
 }
 

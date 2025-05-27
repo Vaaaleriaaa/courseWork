@@ -1,4 +1,4 @@
-package org.example;
+/*package org.example;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,6 +12,7 @@ public class QuadraticAbstractAssignmentProblem extends AbstractAssignmentProble
     public int[][] cArray; // матрица расстояний между зданиями
     public int[][] bArray; // матрица объема продукции, транспортируемой между цехами
     public List<Integer> pi; // оптимальное решение
+    public int fPi;
 
 
     // загрузка задачи из файла
@@ -26,7 +27,7 @@ public class QuadraticAbstractAssignmentProblem extends AbstractAssignmentProble
             }
             fPi = scanner.nextInt();
             super.setN(n);
-            super.setfPi(fPi);
+            setfPi(fPi);
             pi = new ArrayList<>(n);
             for (int i = 0; i < n; i++) {
                 pi.add(scanner.nextInt() - 1);
@@ -44,6 +45,10 @@ public class QuadraticAbstractAssignmentProblem extends AbstractAssignmentProble
                 }
             }
         }catch (IOException e) { System.out.println(e.getMessage()); }
+    }
+
+    public void setfPi(int fPi) {
+        this.fPi = fPi;
     }
 
     @Override
@@ -67,3 +72,5 @@ public class QuadraticAbstractAssignmentProblem extends AbstractAssignmentProble
         return pi;
     }
 }
+
+ */

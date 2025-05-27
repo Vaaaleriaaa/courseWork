@@ -1,5 +1,4 @@
 package org.example;
-import com.google.ortools.*;
 import com.google.ortools.Loader;
 import com.google.ortools.linearsolver.MPConstraint;
 import com.google.ortools.linearsolver.MPObjective;
@@ -16,10 +15,7 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
     public List<Integer> pi; // оптимальное решение
     public boolean max = true; // временный костыль
 
-
-    public long wall_time; // время, за которое solver нашел решение
-    public MPSolver.ResultStatus resultStatus; // статус найденного решения(допустимое, оптимальное, задача некорректная и т.д. )
-
+    public double decision; // найденное решение
 
     // Загрузка задачи из файла
     public LinearAssignmentProblem(File file){
@@ -37,11 +33,14 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
             }
         }catch (IOException e) { System.out.println(e.getMessage()); }
 
+        /*
         // сразу же найдем точное решение
         pi = Arrays.stream(OptimalAssignmentSolver.kuhnMunkres(costArray)).boxed().toList();
         fPi = function(pi);
         super.setN(n);
         super.setfPi(fPi);
+
+         */
     }
 
     // Считает значение целевой функции по решению заданному в виде List<Integer>
@@ -90,9 +89,9 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
     }
 
     // Генерация задачи о назначении с сохранением в файл по заданному n и файлу...
-    public static void generateAssignmentProblem(int n, File file){
+    public static void generateAssignmentProblem(int n, boolean max, File file){
         try(BufferedWriter out = new BufferedWriter(new FileWriter(file))) {
-            out.write(Integer.toString(n));
+            out.write(Integer.toString(n) + " " + Boolean.toString(max));
             out.newLine();
             for (int i = 0; i < n; i++) {
                 for (int j = 0; j < n; j++) {
@@ -110,18 +109,18 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
     public ArrayList<Integer> generateSmartStart(){
         ArrayList<Integer> pi = new ArrayList<>(n);
         for (int i=0; i<n; i++) {
-            int elemetAdd = costArray[i][0];
-            Integer indexElementAdd = -1;
+            int elementAdd = costArray[i][0];
+            int indexElementAdd = -1;
             for (int k=0; k<n; k++){
-                if (elemetAdd > costArray[i][k]){
-                    elemetAdd = costArray[i][k];
+                if (elementAdd > costArray[i][k]){
+                    elementAdd = costArray[i][k];
                 }
             }
 
             for (int j=0; j<n; j++){
                 if (!pi.contains(j)) {
-                    if (costArray[i][j] > elemetAdd) {
-                        elemetAdd = costArray[i][j];
+                    if (costArray[i][j] > elementAdd) {
+                        elementAdd = costArray[i][j];
                         indexElementAdd = j;
                     }
                 }
@@ -131,18 +130,83 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
         return pi;
     }
 
+    @Override
+    public ArrayList<Integer> generateSolverStart(){
+        ArrayList<Integer> pi = new ArrayList<>(n);
+
+        Loader.loadNativeLibraries();
+
+        // Объявим решателем
+        MPSolver solver = MPSolver.createSolver("SCIP");
+        if (solver == null) {
+            System.out.println("Could not create solver SCIP");
+            return null;
+        }
+
+        // Создадим переменные
+        // x[i][j] is an array of 0-1 variables, which will be 1 if worker i is assigned to task j.
+        MPVariable[][] x = new MPVariable[n][n];
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                x[i][j] = solver.makeIntVar(0, 1, "");
+            }
+        }
+
+        // Создадим ограничения
+        // Each worker is assigned to at most one task.
+        for (int i = 0; i < n; ++i) {
+            MPConstraint constraint = solver.makeConstraint(1, 1, "");
+            for (int j = 0; j < n; ++j) {
+                constraint.setCoefficient(x[i][j], 1);
+            }
+        }
+        // Each task is assigned to exactly one worker.
+        for (int j = 0; j < n; ++j) {
+            MPConstraint constraint = solver.makeConstraint(1, 1, "");
+            for (int i = 0; i < n; ++i) {
+                constraint.setCoefficient(x[i][j], 1);
+            }
+        }
+
+        // Создадим целевую функцию
+        MPObjective objective = solver.objective();
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                objective.setCoefficient(x[i][j], costArray[i][j]);
+            }
+        }
+
+        // Фиксируем то, что мы решаем задачу на минимум или максимум
+        if (!max) {
+            objective.setMinimization();
+        }
+        else{
+            objective.setMaximization();
+        }
+
+        // Вызов решателя
+        solver.setTimeLimit(1000); // Запускаем на секунду
+
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                if (x[i][j].solutionValue() > 0.5) {
+                    pi.add(j);
+                }
+            }
+        }
+
+        return pi;
+    }
+
 
     // Решение задачи через библиотеку OrTools
     public void solveTask(String solver_name){
         Loader.loadNativeLibraries();
 
-
-        // Объявим решателем SCIP.
-        // Есть еще несколько разных решателей, например, альтернативный PDLP, или GLOP для линейного программирования
-        // Про решатели: https://developers.google.com/optimization/lp/lp_advanced?hl=ru
+        // Объявим решателем
         MPSolver solver = MPSolver.createSolver(solver_name);
         if (solver == null) {
-            System.out.println("Could not create solver SCIP");
+            System.out.println("Could not create solver " + solver_name);
             return;
         }
 
@@ -178,19 +242,27 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
                 objective.setCoefficient(x[i][j], costArray[i][j]);
             }
         }
-        // Задача на минимум
-        objective.setMaximization();
+
+        // Фиксируем то, что мы решаем задачу на минимум или максимум
+        if (max == false) {
+            objective.setMinimization();
+        }
+        else{
+            objective.setMaximization();
+        }
 
         // Вызов решателя
         resultStatus = solver.solve();
-        wall_time = solver.wallTime() / 1000;
+        wall_time = solver.wallTime() ;
+        decisionSolverOrTools = objective.value();
 
+        /*
         // Выведем решение
         // Check that the problem has a feasible solution.
         if (resultStatus == MPSolver.ResultStatus.OPTIMAL
                 || resultStatus == MPSolver.ResultStatus.FEASIBLE) {
             System.out.println("Total cost: " + objective.value() + "\n");
-            /*for (int i = 0; i < n; ++i) {
+            for (int i = 0; i < n; ++i) {
                 for (int j = 0; j < n; ++j) {
                     // Test if x[i][j] is 0 or 1 (with tolerance for floating point
                     // arithmetic).
@@ -201,10 +273,12 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
                 }
             }
 
-             */
+
         } else {
             System.err.println("No solution found.");
         }
+
+         */
     }
 
 }

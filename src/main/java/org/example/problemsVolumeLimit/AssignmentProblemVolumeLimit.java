@@ -1,5 +1,10 @@
 package org.example.problemsVolumeLimit;
 
+import com.google.ortools.Loader;
+import com.google.ortools.linearsolver.MPConstraint;
+import com.google.ortools.linearsolver.MPObjective;
+import com.google.ortools.linearsolver.MPSolver;
+import com.google.ortools.linearsolver.MPVariable;
 import org.example.AbstractAssignmentProblem;
 
 import java.io.*;
@@ -11,6 +16,9 @@ public class AssignmentProblemVolumeLimit extends AbstractAssignmentProblem {
     public List<Integer> pi; // оптимальное решение
     private int[] volumeLimit; // матрица ограничения на объемы
     private int[] appointmentLimit; // матрица ограничения на количество назначений на одно здание
+
+    private long time_limit_milliseconds = 1800000 * 4; // 1800000 - 30 минут, 7200000 - 2 часа
+
 
 
     // Загрузка задачи из файла
@@ -157,6 +165,91 @@ public class AssignmentProblemVolumeLimit extends AbstractAssignmentProblem {
             }
             pi.add(i, indexElementAdd);
         }
+        return pi;
+    }
+
+    @Override
+    public ArrayList<Integer> generateSolverStart() {
+        return solveTask("SCIP", 1000);
+    }
+
+    // Решим задачу используя библиотеку OrTools
+    public ArrayList<Integer> solveTask(String solver_name, int time){
+        ArrayList<Integer> pi = new ArrayList<>();
+        Loader.loadNativeLibraries();   // Загружает нативные библиотеки, необходимые для OR-Tools.
+
+        MPSolver solver = MPSolver.createSolver(solver_name);    // Создает решатель SCIP.
+        if (solver == null) {   // Проверяет, удалось ли создать решатель.
+            System.out.println("Could not create solver" + solver_name);     // Выводит сообщение об ошибке, если не удалось.
+            return null;     // Завершает программу.
+        }
+
+        // Создадим переменные
+        // x[i][j] is an array of 0-1 variables, which will be 1 if worker i is assigned to task j.
+        MPVariable[][] x = new MPVariable[n][n];
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                x[i][j] = solver.makeIntVar(0, 1, "");
+            }
+        }
+
+        // Создадим ограничения
+        // Каждый работник имеет одну должность
+        for (int i = 0; i < n; ++i) {
+            MPConstraint constraint = solver.makeConstraint(1, 1, "");
+            for (int j = 0; j < n; ++j) {
+                constraint.setCoefficient(x[i][j], 1);
+            }
+        }
+
+        // Ограничение на суммарные затраты на должность
+        for (int j = 0; j < n; ++j) {
+            MPConstraint constraint = solver.makeConstraint(0, volumeLimit[j], "");
+            for (int i = 0; i < n; ++i) {
+                constraint.setCoefficient(x[i][j], costArray[i][j]);
+            }
+        }
+
+        // Ограничение на количество работников на одной должности
+        for (int j = 0; j < n; ++j) {
+            MPConstraint constraint = solver.makeConstraint(0, appointmentLimit[j], "");
+            for (int i = 0; i < n; ++i) {
+                constraint.setCoefficient(x[i][j], 1);
+            }
+        }
+
+
+        // Создадим целевую функцию
+        MPObjective objective = solver.objective();
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                objective.setCoefficient(x[i][j], costArray[i][j]);
+            }
+        }
+
+        // Фиксируем то, что мы решаем задачу на минимум или максимум
+        if (max == false) {
+            objective.setMinimization();
+        }
+        else{
+            objective.setMaximization();
+        }
+
+        // Вызов решателя
+        solver.setTimeLimit(time);
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                if (x[i][j].solutionValue() > 0.5) {
+                    pi.add(j);
+                }
+            }
+        }
+
+        solver.setTimeLimit(time_limit_milliseconds);
+        resultStatus = solver.solve();
+        wall_time = solver.wallTime();
+        decisionSolverOrTools = objective.value();
+
         return pi;
     }
 }
