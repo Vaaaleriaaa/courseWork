@@ -6,7 +6,7 @@ import java.util.Random;
 public class Main {
     public static void main(String[] args) throws IOException {
 
-        String folder = "D:\\ярлыкиРабочегоСтола\\univer\\3course\\courseWork\\localSearch\\src\\main\\java\\org\\example\\problems\\confComb\\n_10\\p_25_30\\";
+        String folder = "src\\main\\java\\org\\example\\problems\\confComb\\n_20\\p_25_30\\";
 
         File file_result = new File(folder + "test.txt");
 

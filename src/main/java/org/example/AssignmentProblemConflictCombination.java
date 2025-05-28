@@ -301,9 +301,11 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
         // Вызов решателя
         solver.setTimeLimit(time);
 
-        resultStatus = solver.solve();
-        wall_time = solver.wallTime();
-        decisionSolverOrTools = objective.value();
+        if (time == time_limit_milliseconds) {
+            resultStatus = solver.solve();
+            wall_time = solver.wallTime();
+            decisionSolverOrTools = objective.value();
+        }
 
         ArrayList<Integer> pi = new ArrayList<>();
 
@@ -314,8 +316,6 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
                 }
             }
         }
-
-
 
         return pi;
 
