@@ -1,17 +1,111 @@
 package org.example;
 
 import java.io.*;
-import java.util.Random;
+import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) throws IOException {
 
-        String folder = "src\\main\\java\\org\\example\\problems\\confComb\\n_20\\p_25_30\\";
+        String folderLin = "src\\main\\java\\org\\example\\problems\\lin\\20\\";
+        String folderVL = "src\\main\\java\\org\\example\\problems\\volumeLimit\\n_20\\";
+        String folderCC = "src\\main\\java\\org\\example\\problems\\confComb\\n_20\\p_25_30\\";
 
-        File file_result = new File(folder + "test.txt");
+        /*
+        ////// ДЛЯ ОТЛАДКИ
+        String folderCCtest = "src\\main\\java\\org\\example\\problems\\confComb\\n_5\\p_25_30\\";
+        for (int i = 0; i < 1; i++) {
+            File problemFile = new File(folderCCtest + "t" + i + ".txt");
+            AssignmentProblemConflictCombination problem = new AssignmentProblemConflictCombination(problemFile);
 
+            LocalSearch lc = new LocalSearch(problem);
+            lc.localSearchRestartStep1p1();
+
+        }
+        */
+
+
+        File file_result;
+
+
+        /// Решаем с конфликтными комбинациями
+        file_result = new File(folderCC + "LS1p1_cc.txt");
+        try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result, true))) {
+            //out.write("Task CountIteration Time_LS_1p1 Desigion_LS_1p1 Status_SCIP Time_SCIP Desigion_SCIP ErrorRate_LS_1p1\n");
+            out.newLine();
+            out.newLine();
+        }
+
+
+
+
+        for (int i = 1; i < 30; i++) {
+
+            File problemFile = new File(folderCC + "t" + i + ".txt");
+
+            AssignmentProblemConflictCombination problem = new AssignmentProblemConflictCombination(problemFile);
+
+            LocalSearch lc = new LocalSearch(problem);
+            lc.localSearchRestartStep1p1();
+
+            problem.solveTask("SCIP", problem.time_limit_milliseconds);
+
+            try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result, true))) {
+                out.write(i + " " + lc.step + " " + lc.wall_time_ls + " " + lc.rec + " ");
+                out.write(problem.resultStatus + " " + problem.wall_time + " " + problem.decisionSolverOrTools + " " + lc.getErrorRate() + "\n");
+
+            }
+            System.out.println("Task " + i + " solved!!!");
+
+        }
+    }
+}
+
+
+
+        /*
+        try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result))) {
+            out.write("НомерЗадачи ИсходнаяПогрешность swap invert shuffle insertP insert swapK insertK\n");
+        }
+
+
+
+
+
+        // исследование всех окрестностей на 30 задачах, ищем оптимальное решение задачи с помощью одной из окрестностей и записываем погрешность
+        for (int i = 29; i < 30; i++) {
+
+            AssignmentProblemConflictCombination problem = new AssignmentProblemConflictCombination(new File(folder + "t" + i + ".txt"));
+            LocalSearch lc = new LocalSearch(problem);
+            lc.generateSolverPi();
+            try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result, true))) {
+                out.write(i + " " + lc.getErrorRate() );
+            }
+            ArrayList<Integer> pi = new ArrayList<>();
+            pi.addAll(lc.pi);
+            int numSteps = 4000;
+                for (int v = 0; v<7; v++){
+                    System.out.println("PI MAIN " + pi);
+                    System.out.println("PI MAIN " + pi);
+                    System.out.println("PI MAIN " + pi);
+                    try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result, true))) {
+                        out.write( " " + lc.researchNeighborhood( pi ,numSteps, v) );
+                    }
+                }
+            try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result, true))) {
+                out.newLine();
+            }
+        }
+   }
+}
+         */
+
+
+
+
+
+        /*
         try (BufferedWriter out = new BufferedWriter(new FileWriter(file_result))) {
-            out.write("Task Status_SCIP Time_SCIP Desigion_SCIP Time_LS_1p1 Desigion_LS_1p1 ErrorRate_LS_1p1\n"); // Time_LS_1p1 Desigion_LS_1p1 ErrorRate_LS_1p1
+            out.write("шапка\n"); // Time_LS_1p1 Desigion_LS_1p1 ErrorRate_LS_1p1
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
@@ -24,11 +118,10 @@ public class Main {
                 out.write("t"+ i + " " + problem.conflictPercent + " ");
 
                 problem.solveTask("SCIP", problem.time_limit_milliseconds);
-                out.write(problem.resultStatus + " " + problem.wall_time + " " + problem.decisionSolverOrTools + " ");
 
                 LocalSearch localSearch = new LocalSearch(problem);
                 localSearch.localSearchRestartStep1p1();
-                out.write(localSearch.wall_time_ls + " " + localSearch.rec + " " + localSearch.getErrorRate() + " ");
+                out.write(localSearch.wall_time_ls + " " + localSearch.rec + " " + localSearch.getErrorRate());
 
                 out.newLine();
                 System.out.println("task " + i + " solved!");
@@ -39,6 +132,8 @@ public class Main {
 
     }
 }
+
+         */
 
         //String file_result = folder + "\\A_TCC_25_60_n_" + 15 + ".txt";
         //HashSet<String> solvers = new HashSet<>();

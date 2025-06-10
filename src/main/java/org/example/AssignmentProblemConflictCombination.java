@@ -1,19 +1,17 @@
 package org.example;
 
 import com.google.ortools.Loader;
-import com.google.ortools.*;
 import com.google.ortools.linearsolver.MPConstraint;
 import com.google.ortools.linearsolver.MPObjective;
 import com.google.ortools.linearsolver.MPSolver;
 import com.google.ortools.linearsolver.MPVariable;
-import org.example.AbstractAssignmentProblem;
-import org.example.OptimalAssignmentSolver;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class AssignmentProblemConflictCombination extends AbstractAssignmentProblem {
     public int[][] costArray; // матрица стоимости
@@ -24,20 +22,14 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
     private Set<Integer>[] setsWorker; // множества конфликтных работников
     private Set<Integer>[] setsPost; // множества связанных работ
 
-    private int punishment = 500; // при проверке ограничений, каждая конфликтующая пара считается дважды, поэтому наказание будет в 2 раза больше, т.е. 1000
+    private final int punishment = 500; // При проверке ограничений, каждая конфликтующая пара считается дважды, поэтому наказание будет в 2 раза больше, т.е. 1000
 
-
-    public long time_limit_milliseconds = 1800000 * 4; // 1800000 - 30 минут, 7200000 - 2 часа
-    public long wall_time; // время, за которое solver нашел решение
-
-    public MPSolver.ResultStatus resultStatus; // Статус найденного решения(допустимое, оптимальное, задача некорректная и т.д. )
 
     // Создает задачу о назначении по введенному значению n, max, conflictPercent и file
     public static void generateAssignmentProblem(int n, boolean max,  int conflictPercent, File file){
-        Scanner s = new Scanner(System.in);
         try(BufferedWriter out = new BufferedWriter(new FileWriter(file))) {
             // Записываем количество должностей и работников
-            out.write(Integer.toString(n) + " " + Boolean.toString(max) + " " + conflictPercent);
+            out.write(n + " " + max + " " + conflictPercent);
 
             out.newLine(); out.newLine();
 
@@ -164,6 +156,8 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
                 }
             }
         }catch (IOException e) { System.out.println(e.getMessage()); }
+        Loader.loadNativeLibraries();   // Загружает нативные библиотеки, необходимые для OR-Tools.
+        //solveTask("SCIP", time_limit_milliseconds);
     }
 
     // Считает значение целевой функции по решению заданному в виде List<Integer>
@@ -181,11 +175,36 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
     // Создает начальное решение из максимальных элементов в столбцах(столбцы не повторяются)
     @Override
     public ArrayList<Integer> generateSmartStart() {
-        return null;
+        ArrayList<Integer> pi = new ArrayList<>(n);
+        boolean[] assigned = new boolean[n]; // Отслеживает уже назначенные задачи
+
+        for (int i = 0; i < n; i++) {
+            int bestCost = Integer.MAX_VALUE;
+            int bestJ = -1;
+
+            // Находим задачу j с минимальной стоимостью для работника i, которая еще не назначена
+            for (int j = 0; j < n; j++) {
+                if (!assigned[j] && costArray[i][j] < bestCost) {
+                    bestCost = costArray[i][j];
+                    bestJ = j;
+                }
+            }
+
+            // Если задача найдена, добавляем её в pi и помечаем как назначенную
+            if (bestJ != -1) {
+                pi.add(bestJ);
+                assigned[bestJ] = true;
+            } else {
+                // Если не удалось найти свободную задачу, выбрасываем исключение или возвращаем null
+                throw new IllegalStateException("Не удалось найти свободную задачу для работника " + i);
+            }
+        }
+
+        return pi;
     }
 
     // Нет ли в назначении конфликтных комбинаций(конфликтные работники назначены вместе на связанные должности)
-    private int punish(List<Integer> list){
+    private int punish(List<Integer> pi){
         int punish = 0;
 
         for (int i = 0; i < nw; i++) { // Проходим по всем конфликтующим группам работников
@@ -199,7 +218,7 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
                                 //Пропускаем, если работник пытается устроиться на ту же должность (в этом нет конфликта)
                                 if (itemW1 == itemW2 && itemP1 == itemP2) continue;
 
-                                else if ( list.get(itemW1) == itemP1 && list.get(itemW2) == itemP2){
+                                else if ( pi.get(itemW1) == itemP1 && pi.get(itemW2) == itemP2){
                                     punish += punishment;
                                 }
                             }
@@ -213,22 +232,56 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
     }
 
     @Override
+    public ArrayList<Integer> getInvalidList(List<Integer> pi){
+        ArrayList<Integer> invalidList = new ArrayList<>();
+
+        for (int i = 0; i < nw; i++) { // Проходим по всем конфликтующим группам работников
+            for (int j = 0; j < np; j++) { // Проходим по всем связанным группам должностей
+
+                for (int itemW1 : setsWorker[i]) { // Перебираем работников из конфликтующей группы
+                    for (int itemP1 : setsPost[j]) { // Перебираем должности из связанной группы
+                        for (int itemW2 : setsWorker[i]) { // Перебираем работников из конфликтующей группы
+                            for (int itemP2 : setsPost[j]) { // Перебираем должности из связанной группы
+
+                                //Пропускаем, если работник пытается устроиться на ту же должность (в этом нет конфликта)
+                                if (itemW1 == itemW2 && itemP1 == itemP2) continue;
+
+                                else if ( pi.get(itemW1) == itemP1 && pi.get(itemW2) == itemP2){
+                                    invalidList.add(pi.get(itemP1));
+                                    invalidList.add(pi.get(itemP2));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        invalidList.stream().distinct().collect(Collectors.toList()); // Удаляем дубликаты через Stream API
+
+        return invalidList;
+    }
+
+    @Override
     public ArrayList<Integer> generateSolverStart(){
-        // Вызов решателя
-        return solveTask("SCIP", 1000); // Запускаем на секунду
+        return solveTask("SCIP", 2000);
 
     }
 
+
+
     // Решим задачу используя библиотеку OrTools
     public ArrayList<Integer> solveTask(String solver_name, long time){
-        System.out.println("solveTask");
-        Loader.loadNativeLibraries();   // Загружает нативные библиотеки, необходимые для OR-Tools.
+
+        System.out.println("buildSolver");
 
         MPSolver solver = MPSolver.createSolver(solver_name);    // Создает решатель SCIP.
         if (solver == null) {   // Проверяет, удалось ли создать решатель.
             System.out.println("Could not create solver" + solver_name);     // Выводит сообщение об ошибке, если не удалось.
             return null;     // Завершает программу.
         }
+
+        solver.setTimeLimit(time);  //  устанавливаем ограничение времени на поиск решения
 
         // Создадим переменные
         // x[i][j] is an array of 0-1 variables, which will be 1 if worker i is assigned to task j.
@@ -298,48 +351,34 @@ public class AssignmentProblemConflictCombination extends AbstractAssignmentProb
             objective.setMaximization();
         }
 
-        // Вызов решателя
-        solver.setTimeLimit(time);
-
+        resultStatus = solver.solve();
         if (time == time_limit_milliseconds) {
-            resultStatus = solver.solve();
             wall_time = solver.wallTime();
             decisionSolverOrTools = objective.value();
         }
-
-        ArrayList<Integer> pi = new ArrayList<>();
-
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                if (x[i][j].solutionValue() > 0.5) {
-                    pi.add(j);
-                }
-            }
-        }
-
-        return pi;
-
-        /*
-        // Выведем решение
-        // Check that the problem has a feasible solution.
-        if (resultStatus == MPSolver.ResultStatus.OPTIMAL
-                || resultStatus == MPSolver.ResultStatus.FEASIBLE) {
-            System.out.println("Total cost: " + objective.value() + "\n");
+        else {
+            ArrayList<Integer> pi = new ArrayList<>(n);
             for (int i = 0; i < n; ++i) {
+                int assignedPost = -1;
                 for (int j = 0; j < n; ++j) {
                     if (x[i][j].solutionValue() > 0.5) {
-                        System.out.print(j + " ");
+                        assignedPost = j;
+                        break; // Нашли первую подходящую должность для работника i
                     }
                 }
+                if (assignedPost != -1) {
+                    pi.add(assignedPost);
+                } else {
+                    // Не нашли должности для работника i → возможно, нет решения или ошибка
+                    pi.add(-1); // Можно использовать специальное значение
+                }
             }
-        } else {
-            System.err.println("No solution found.");
+            return pi;
         }
+        return null;
 
-         */
 
     }
-
 
 }
 

@@ -1,5 +1,4 @@
 package org.example;
-import org.apache.commons.math3.distribution.PoissonDistribution;
 
 import java.io.*;
 import java.util.*;
@@ -7,27 +6,33 @@ import java.util.*;
 public class LocalSearch {
 
     public AbstractAssignmentProblem problem; // конкретная задача
-    private ArrayList<Integer> pi; // текущее решение
+    public ArrayList<Integer> pi; // текущее решение
     private ArrayList<Integer> winnerPi; // решение победителя
     private int winner; // Значение целевой функции решения победителя
-    private ArrayList<Integer> recPi; // решение рекорда
+    public ArrayList<Integer> recPi; // решение рекорда
     public int rec; // рекорд, которого мы достигли
-    private int neighborhoodCount = 5;  // количество используемых окрестностей
-    private int step; // шаг на котором мы сейчас находимся, при работе алгоритма
+
+    boolean restart;
+    private ArrayList<Integer> recRestartPi; // решение рекорда
+    public int recRestart; // рекорд, которого мы достигли
+    private final int neighborhoodCount = 7;  // количество используемых окрестностей
+    public int step; // шаг на котором мы сейчас находимся, при работе алгоритма
+    int stepRestart;
     private int stepNeighborhood; // шаг на котором мы сейчас находимся, при использовании окрестности
 
     private int stepSuccess; // шаг, на котором был последний переход к более хорошему решению
-    private int stepSuccessStart; // шаг, на котором был последний переход к более хорошему решению
+    private final int stepSuccessStart = 100000; // шаг, на котором был последний переход к более хорошему решению
+
+    private int stepsInNeighborhood; // количество попыток сделать шаг в окрестности
 
     private ArrayList<Double> p; // лист вероятностей применения окрестностей
     private ArrayList<Integer> wins; // количество успешных применений окрестностей
     private int sum; // количества всех применений окрестностей
 
+    private final GeneratorDistribution generatorDistribution;
     private static double shape = 1.5; // начально значение степени для использования распределения с тяжелыми хвостами
     private static double shapeChange = 0.2;
     private static double stepShapeSuccess = 0;
-
-    private PoissonDistribution poissonDistribution;
 
 
     // Фиксируем время потраченное на решение
@@ -47,15 +52,19 @@ public class LocalSearch {
         winnerPi = new ArrayList<>();  // инициализируем переменную хранящую решение победителя
 
         wins = new ArrayList<>();  // инициализируем переменную хранящую победы окрестностей
-        for (int i=0; i<5; i++){
+        for (int i=0; i<neighborhoodCount; i++){
             wins.add(1);
         }
 
         sum = neighborhoodCount;  // инициализируем сумму применения окрестностей как количество окрестностей
         p = new ArrayList<>();  // инициализируем список вероятностей применения окрестностей
 
-        stepSuccess = 1000000;  // инициализируем количество итераций, по прошествии которых, возможен перезапуск поиска
-        poissonDistribution = new PoissonDistribution(1);  // инициализируем распределение Пуассона для случайных величин
+        generatorDistribution = new GeneratorDistribution();
+
+        // было 500000 для конфликтных комбинаций
+        // было 100000 для учета должностей
+        stepSuccess = stepSuccessStart;  // инициализируем количество итераций, по прошествии которых, возможен перезапуск поиска
+        stepsInNeighborhood = 20;
     }
 
     // генерация случайного начального решения
@@ -100,18 +109,29 @@ public class LocalSearch {
 
     // генерация начального решения с помощью солвера
     public void generateSolverPi(){
-        System.out.println("generateSolverPi");
+        //System.out.println("generateSolverPi");
         if ( !pi.isEmpty() ) {pi.clear(); }
         pi = problem.generateSolverStart();
         updateRec(pi);
     }
 
     // обновление рекорда
-    private void updateRec(ArrayList<Integer> newRec){
+    private void updateRec( ArrayList<Integer> newRec){
         //System.out.println("updateRec");
-        if ( !recPi.isEmpty() ) { recPi.clear(); }
-        recPi.addAll(newRec);
-        rec = problem.function(recPi);
+        if (!restart) {
+            if (!recPi.isEmpty()) {
+                recPi.clear();
+            }
+            recPi.addAll(newRec);
+            rec = problem.function(recPi);
+        }
+        else {
+            if (!recRestartPi.isEmpty()) {
+                recRestartPi.clear();
+            }
+            recRestartPi.addAll(newRec);
+            recRestart = problem.function(recPi);
+        }
     }
 
     // обновление победителя
@@ -131,58 +151,69 @@ public class LocalSearch {
     }
 
     // обработка локальной точки, (1+1)ES
-    private boolean processPiRec(int n){
+    private boolean processPiRec(int neighborhoodN){
         //System.out.println("processPiRec");
-        if (n>5 || n<0) { throw new IllegalArgumentException("Окрестность с таким номером не существует"); }
+        if (neighborhoodN > neighborhoodCount || neighborhoodN<0) { throw new IllegalArgumentException("Окрестность с таким номером не существует"); }
         // если найденное решение лучше рекорда
-        if ((problem.getMax() && (problem.function(pi) > rec)) ||
+        if (!restart) {
+            if ((problem.getMax() && (problem.function(pi) > rec)) ||
                     (!problem.getMax() && (problem.function(pi) < rec))) {
-            updateRec(pi);
-            Integer change = wins.get(n) + 1;
-            wins.set(n, change);
-            sum++;
-            if ( step > 1000000 ){
-                stepSuccess = step;
+                updateRec(pi);
+                Integer change = wins.get(neighborhoodN) + 1;
+                wins.set(neighborhoodN, change);
+                sum++;
+                if (step > stepSuccessStart) {
+                    stepSuccess = step;
+                }
+                return true;
             }
-            return true;
+            // если найденное решение хуже рекорда
+            if ((problem.getMax() && (problem.function(pi) < rec)) ||
+                    (!problem.getMax() && (problem.function(pi) > rec))) {
+                pi.clear();
+                pi.addAll(recPi);
+            }
+            return false;
         }
-        // если найденное решение хуже рекорда
-        if ( (problem.getMax() && (problem.function(pi) < rec) ) ||
-                ( !problem.getMax() && (problem.function(pi) > rec) ) ){
-            sum++;
+        else{
+            if ((problem.getMax() && (problem.function(pi) > recRestart)) ||
+                    (!problem.getMax() && (problem.function(pi) < recRestart))) {
+                updateRec(pi);
+                Integer change = wins.get(neighborhoodN) + 1;
+                wins.set(neighborhoodN, change);
+                sum++;
+                if (step > stepSuccessStart) {
+                    stepSuccess = step;
+                }
+                return true;
+            }
+            // если найденное решение хуже рекорда
+            if ((problem.getMax() && (problem.function(pi) < recRestart)) ||
+                    (!problem.getMax() && (problem.function(pi) > recRestart))) {
+                pi.clear();
+                pi.addAll(recRestartPi);
+            }
+            return false;
+
         }
-        return false;
     }
 
     // обработка локальной точки, идем с победителями
-    private void processPiWin(int n){
+    private void processPiWin(int neighborhoodN){
         //System.out.println("processPiWin");
-        if (n>5 || n<0) { throw new IllegalArgumentException("Окрестность с таким номером не существует"); }
+        if ( neighborhoodN > neighborhoodCount || neighborhoodN < 0 ) { throw new IllegalArgumentException("Окрестность с таким номером не существует"); }
         // если найденное решение лучше, чем у победителя
         if ((problem.getMax() && (problem.function(pi) > winner)) ||
                 (!problem.getMax() && (problem.function(pi) < winner))) {
             updateWinner(pi);
-            Integer change = wins.get(n) +1;
-            wins.set(n, change);
+            Integer change = wins.get(neighborhoodN) + 1;
+            wins.set(neighborhoodN, change);
             sum++;
           //  shape -= shapeChange;
          //   checkShape();
-            if ( step > 1000000 ){
+            if ( step > stepSuccessStart ){
                 stepSuccess = step;
             }
-        }
-
-        // если найденное решение лучше, чем у победителя
-        if ( (problem.getMax() && (problem.function(pi) > winner) ) ||
-                ( !problem.getMax() && (problem.function(pi) < winner) ) ){
-            updatePi(this.winnerPi);
-            sum++;
-        }
-
-        // если найденный победитель лучше, чем рекорда
-        if ( (problem.getMax() && (winner > rec) ) ||
-                ( !problem.getMax() && (winner < rec) ) ){
-            updatePi(this.winnerPi);
         }
     }
 
@@ -193,39 +224,47 @@ public class LocalSearch {
         boolean flagUpdate = false;
         int i;
         if (choice < p.get(0)) {
-            for ( i = 0; !flagUpdate && i < problem.getN(); i++) {
+            for ( i = 0; !flagUpdate && i < stepsInNeighborhood; i++) {
                 pi = swap(this.pi);
                 flagUpdate = processPiRec(0);
             }
         } else if (choice < p.get(0) + p.get(1)) {
-            for ( i = 0; !flagUpdate && i < problem.getN(); i++) {
+            for ( i = 0; !flagUpdate && i < stepsInNeighborhood; i++) {
                 pi = invert(this.pi);
                 flagUpdate = processPiRec(1);
             }
         } else if (choice < p.get(0) + p.get(1) + p.get(2)) {
-            for ( i = 0; !flagUpdate && i < problem.getN(); i++) {
+            for ( i = 0; !flagUpdate && i < stepsInNeighborhood; i++) {
                 pi = shuffle(this.pi);
                 flagUpdate = processPiRec(2);
             }
         } else if (choice < p.get(0) + p.get(1) + p.get(2) + p.get(3)) {
-            for ( i = 0; !flagUpdate && i < problem.getN(); i++) {
+            for ( i = 0; !flagUpdate && i < stepsInNeighborhood; i++) {
                 pi = insertP(this.pi);
                 flagUpdate = processPiRec(3);
             }
-        } else {
-            for ( i = 0; !flagUpdate && i < problem.getN(); i++) {
+        } else if (choice < p.get(0) + p.get(1) + p.get(2) + p.get(3) + p.get(4)) {
+            for ( i = 0; !flagUpdate && i < stepsInNeighborhood; i++) {
                 pi = insert(this.pi);
                 flagUpdate = processPiRec(4);
             }
+        } else if (choice < p.get(0) + p.get(1) + p.get(2) + p.get(3)+ p.get(4)+ p.get(5)) {
+            for ( i = 0; !flagUpdate && i < stepsInNeighborhood; i++) {
+                pi = swapK(this.pi);
+                flagUpdate = processPiRec(5);
+            }
+        } else {
+            for ( i = 0; !flagUpdate && i < stepsInNeighborhood; i++) {
+                pi = insertK(this.pi);
+                flagUpdate = processPiRec(6);
+            }
         }
-        System.out.println("Pi " + pi );
-        System.out.println(problem.function(pi));
-        System.out.println("Rec " + recPi);
-        System.out.println(rec);
 
-        if (rec > 0) {
-            System.out.println("ВАЖНО! rec = " + rec);
-        }
+        //// ВРЕМЕННЫЕ ВЫВОДЫ
+        System.out.println("Step " + step);
+        System.out.println("Rec " + rec);
+        //// ВРЕМЕННЫЕ ВЫВОДЫ
+
         return i;
     }
 
@@ -233,37 +272,44 @@ public class LocalSearch {
     private void localSearchWinners(){
         //System.out.println("localSearchWinners");
         winner = problem.function(pi);
-        winnerPi = pi;
+        winnerPi.clear();
+        winnerPi.addAll(pi);
         double choice = ((new Random()).nextDouble(1.0));
         if (choice < p.get(0)) {
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < stepsInNeighborhood; i++) {
                 pi = swap(this.pi);
                 processPiWin(0);
             }
         } else if (choice < p.get(0) + p.get(1)) {
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < stepsInNeighborhood; i++) {
                 pi = invert(this.pi);
                 processPiWin(1);
             }
         } else if (choice < p.get(0) + p.get(1) + p.get(2)) {
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < stepsInNeighborhood; i++) {
                 pi = shuffle(this.pi);
                 processPiWin(2);
             }
         } else if (choice < p.get(0) + p.get(1) + p.get(2) + p.get(3)) {
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < stepsInNeighborhood; i++) {
                 pi = insertP(this.pi);
                 processPiWin(3);
             }
         } else {
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < stepsInNeighborhood; i++) {
                 pi = insert(this.pi);
                 processPiWin(4);
             }
         }
 
-        if ((problem.getMax() && (problem.function(winnerPi) > problem.function(pi))) ||
-                (!problem.getMax() && (problem.function(winnerPi) < problem.function(pi)))) {
+        // если найденный победитель лучше, чем рекорда
+        if ( (problem.getMax() && (winner > rec) ) ||
+                ( !problem.getMax() && (winner < rec) ) ){
+            updatePi(this.winnerPi);
+        }
+
+        if ((problem.getMax() && (problem.function(winnerPi) > problem.function(recPi))) ||
+                (!problem.getMax() && (problem.function(winnerPi) < problem.function(recPi)))) {
             updateRec(winnerPi);
         }
     }
@@ -292,26 +338,19 @@ public class LocalSearch {
         calculationP();
         step = 0;
 
-        while ( time() <= timeout) {
+        while ( step <= 2 * stepSuccess) {
             localSearchWinners();
-            step = step + 100;
-            if (step%500 == 0){
+            step = step + stepsInNeighborhood;
+            if (step%140 == 0){
                 calculationP();
-              //  shape = 1.5;
-            }
-        }
-        generateRandomPiWithoutUpdateRec();
-        for (int stepRestart = 0; stepRestart < 10000; stepRestart = stepRestart + 100) {
-            localSearchWinners();
-            if (stepRestart%500 == 0){
-                calculationP();
-              //  shape = 1.5;
+                //  checkShape();
             }
         }
 
-        for (int k = 0; k < 100; k++) {
+        for (int k = 0; k < 2000; k++) {
             pi = insert(this.pi);
             processPiRec(0);
+            step++;
         }
         // Зафиксируем время окончания работы
         endTime = System.currentTimeMillis();
@@ -323,36 +362,53 @@ public class LocalSearch {
         // Зафиксируем время начала вычислений
         startTime = System.currentTimeMillis();
 
-        training();
+        //training();
         calculationP();
 
         generateSolverPi();
 
+        //restart = false;
         step = 0;
 
         while ( step <= 2 * stepSuccess) {
             stepNeighborhood = localSearch1p1();
             step = step + stepNeighborhood;
-            if (step%100 == 0){
+            if (step%140 == 0){
                 calculationP();
               //  checkShape();
             }
         }
 
-        /*generateSolverPiWithoutUpdateRec();
-        for (int stepRestart = 0; stepRestart < 20000;) {
+        /*
+        generateRandomPiWithoutUpdateRec();
+        recRestartPi = new ArrayList<>();
+        recRestartPi.addAll(pi);
+        recRestart = problem.function(recRestartPi);
+        restart = true;
+        stepRestart = 0;
+        stepSuccess = 150000;
+
+        while ( stepRestart <= stepSuccess) {
             stepNeighborhood = localSearch1p1();
             stepRestart = stepRestart + stepNeighborhood;
-            if (stepRestart%100 == 0){
+            if (stepRestart%140 == 0){
                 calculationP();
             }
+        }
+        restart = false;
+        if ( problem.getMax() && recRestart > rec ){
+            rec = recRestart;
+            recPi.clear();
+            recPi.addAll(recRestartPi);
         }
 
          */
 
-        for (int k = 0; k < 20000; k++) {
+
+        for (int k = 0; k < 2000; k++) {
             pi = insert(this.pi);
             processPiRec(0);
+            step++;
         }
         // Зафиксируем время окончания работы
         endTime = System.currentTimeMillis();
@@ -455,7 +511,7 @@ public class LocalSearch {
 
         generateSmartPi();
         calculationP();
-        for (int stepLS=0; stepLS < 20000; stepLS = stepLS+10) {
+        for (int stepLS=0; stepLS < 100000; stepLS = stepLS+10) {
             localSearch1p1();
             if (stepLS%100 == 0){
                 calculationP();
@@ -471,25 +527,65 @@ public class LocalSearch {
     private ArrayList<Integer> swap( ArrayList<Integer> pi ) {
         //System.out.println("Swap");
         ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        int i1 = ((new Random()).nextInt(currentPi.size()));
-        //PoissonDistribution();
+
+        ArrayList<Integer> invalidList = problem.getInvalidList(currentPi);
+        int i1 = -1;
+        if ( invalidList != null && invalidList.size() != 0){
+            i1 = invalidList.get( generatorDistribution.generatePoisson20(invalidList.size()));
+        }
+        else { i1 = generatorDistribution.generatePoisson20(currentPi.size()); }
+
         int i2 = i1;
         while(i1 == i2) {
-            i2 = (i1 + ((new Random()).nextInt(currentPi.size() - 1))) % currentPi.size();
+            i2 = generatorDistribution.generatePoisson20(currentPi.size());
         }
         Collections.swap(currentPi, i1, i2);
         return currentPi;
     }
 
-    /*
+    // меняет местами 2 случайных элемента массива
+    private ArrayList<Integer> swapK( ArrayList<Integer> pi ) {
+        //System.out.println("SwapK");
+        ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
+
+        int k = generatorDistribution.generatePoisson40(problem.getN());  // количество применения swap к текущему решению
+        while (k < 2){
+            k = generatorDistribution.generatePoisson40(problem.getN());  // Если k < 2, то это обычный swap, который уже есть
+        }
+
+        for (int i = 0; i< k; i++) {
+            ArrayList<Integer> invalidList = problem.getInvalidList(currentPi);
+            int i1 = -1;
+            if ( invalidList != null && invalidList.size() != 0){
+                i1 = invalidList.get( generatorDistribution.generateNormal(invalidList.size()));
+            }
+            else { i1 = generatorDistribution.generatePoisson40(currentPi.size()); }
+
+            int i2 = i1;
+            while(i1 == i2) {
+                i2 = generatorDistribution.generatePoisson40(currentPi.size());
+            }
+            Collections.swap(currentPi, i1, i2);
+        }
+        return currentPi;
+    }
 
     // переворачивает подпоследовать(меняет местами индексы 1ый становится последним и т.д.)
     private ArrayList<Integer> invert( ArrayList<Integer> pi ) {
         //System.out.println("invert");
         ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        int subLen = (GeneratorDistribution.generate(shape, problem.n)); // длина вытаскиваемой подпоследовательности
-        while(subLen < 2) { subLen = ((new Random()).nextInt(currentPi.size())); }
-        int firstIndex = ((new Random()).nextInt(currentPi.size() - subLen + 1)); // индекс первого элемента подпоследовательности в исходной последовательности
+
+        int firstIndex = generatorDistribution.generatePoisson40(currentPi.size()); // индекс первого элемента подпоследовательности в исходной последовательности
+
+        while (firstIndex > 19){
+            firstIndex = generatorDistribution.generatePoisson40(currentPi.size());
+        }
+
+        int subLen = generatorDistribution.generatePoisson40(currentPi.size() - firstIndex); // длина вытаскиваемой подпоследовательности
+        if (firstIndex == 18){
+            subLen = 2;
+        }
+
         ArrayList<Integer> subCurrentPi = new ArrayList<>(); // вытаскиваем подпоследовательность
         for (int i=firstIndex; i<firstIndex+subLen-1; i++){
             subCurrentPi.add( currentPi.get(i) );
@@ -505,9 +601,18 @@ public class LocalSearch {
     private ArrayList<Integer> shuffle( ArrayList<Integer> pi )  {
         //System.out.println("shuffle");
         ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        int subLen = (GeneratorDistribution.generate(shape, problem.n)); // длина вытаскиваемой подпоследовательности
-        while(subLen < 2) { subLen = ((new Random()).nextInt(currentPi.size())); }
-        int firstIndex = ((new Random()).nextInt(currentPi.size() - subLen + 1)); // индекс первого элемента подпоследовательности в исходной последовательности
+
+        int firstIndex = generatorDistribution.generatePoisson40(currentPi.size()); // индекс первого элемента подпоследовательности в исходной последовательности
+
+        while (firstIndex > 19){
+            firstIndex = generatorDistribution.generatePoisson40(currentPi.size());
+        }
+
+        int subLen = generatorDistribution.generatePoisson40(currentPi.size() - firstIndex); // длина вытаскиваемой подпоследовательности
+        if (firstIndex == 18){
+            subLen = 2;
+        }
+
         ArrayList<Integer> subCurrentPi = new ArrayList<>(); // вытаскиваем подпоследовательность
         for (int i=firstIndex; i<firstIndex+subLen-1; i++){
             subCurrentPi.add( currentPi.get(i) );
@@ -523,87 +628,23 @@ public class LocalSearch {
     // вытаскивает подпоследовательность и вставляет ее в случайное место
     private ArrayList<Integer> insertP(ArrayList<Integer> pi) {
         //System.out.println("insertP");
-        ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        int subLen = (GeneratorDistribution.generate(shape, problem.n)); // длина вытаскиваемой подпоследовательности
-        while(subLen < 2) { subLen = ((new Random()).nextInt(currentPi.size())); }
-        int firstIndex = ((new Random()).nextInt(currentPi.size() - subLen + 1)); // индекс первого элемента подпоследовательности в исходной последовательности
+        ArrayList<Integer> currentPi = new ArrayList<>();
+        currentPi.addAll(pi);
+
+        int subLen = generatorDistribution.generatePoisson20(currentPi.size()/2); // длина вытаскиваемой подпоследовательности
+        while(subLen < 2) {
+            subLen = generatorDistribution.generatePoisson20(currentPi.size()/2);
+
+        }
+
+        int firstIndex = generatorDistribution.generateNormal(currentPi.size() - subLen + 1); // индекс первого элемента подпоследовательности в исходной последовательности
         ArrayList<Integer> subCurrentPi = new ArrayList<>(); // вытаскиваем подпоследовательность
         for (int i=firstIndex; i<firstIndex+subLen-1; i++){
             subCurrentPi.add( currentPi.get(i) );
         }
         currentPi.removeAll(subCurrentPi);
-        int newPlace = ((new Random()).nextInt(currentPi.size())); // индекс первого элемента подпоследовательности в исходной последовательности
-        currentPi.addAll(newPlace, subCurrentPi);
-        return currentPi;
-    }
 
-
-
-    // вытаскивает элемент и вставляет его в случайное место
-    private ArrayList<Integer> insert( ArrayList<Integer> pi ) {
-        //System.out.println("insert");
-        int indexChange = ((new Random()).nextInt(pi.size())); // индекс элемента который будем переставлять
-        ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        Integer element = currentPi.get(indexChange);
-        currentPi.remove(indexChange);
-        int p = ((new Random()).nextInt(currentPi.size())); // позиция куда вставим элемент
-        currentPi.add(p, element);
-        return currentPi;
-    }
-
-     */
-
-
-    // переворачивает подпоследовать(меняет местами индексы 1ый становится последним и т.д.)
-    private ArrayList<Integer> invert( ArrayList<Integer> pi ) {
-        //System.out.println("invert");
-        ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        int subLen = ((new Random()).nextInt(currentPi.size())); // длина вытаскиваемой подпоследовательности
-        while(subLen < 2) { subLen = ((new Random()).nextInt(currentPi.size())); }
-        int firstIndex = ((new Random()).nextInt(currentPi.size() - subLen + 1)); // индекс первого элемента подпоследовательности в исходной последовательности
-        ArrayList<Integer> subCurrentPi = new ArrayList<>(); // вытаскиваем подпоследовательность
-        for (int i=firstIndex; i<firstIndex+subLen-1; i++){
-            subCurrentPi.add( currentPi.get(i) );
-        }
-        Collections.reverse(subCurrentPi);
-        for (int i=firstIndex; i<firstIndex+subLen-1; i++){
-            currentPi.set(i, subCurrentPi.get(i-firstIndex));
-        }
-        return currentPi;
-    }
-
-    // перемешивает элементы между собой в подпоследовательности решения
-    private ArrayList<Integer> shuffle( ArrayList<Integer> pi )  {
-        //System.out.println("shuffle");
-        ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        int subLen = ((new Random()).nextInt(currentPi.size())); // длина вытаскиваемой подпоследовательности
-        while(subLen < 2) { subLen = ((new Random()).nextInt(currentPi.size())); }
-        int firstIndex = ((new Random()).nextInt(currentPi.size() - subLen + 1)); // индекс первого элемента подпоследовательности в исходной последовательности
-        ArrayList<Integer> subCurrentPi = new ArrayList<>(); // вытаскиваем подпоследовательность
-        for (int i=firstIndex; i<firstIndex+subLen-1; i++){
-            subCurrentPi.add( currentPi.get(i) );
-        }
-        Collections.shuffle(subCurrentPi);
-        for (int i=firstIndex; i<firstIndex+subLen-1; i++){
-            currentPi.set(i, subCurrentPi.get(i-firstIndex));
-        }
-        return currentPi;
-    }
-
-
-    // вытаскивает подпоследовательность и вставляет ее в случайное место
-    private ArrayList<Integer> insertP(ArrayList<Integer> pi) {
-        //System.out.println("insertP");
-        ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
-        int subLen = ((new Random()).nextInt(currentPi.size())); // длина вытаскиваемой подпоследовательности
-        while(subLen < 2) { subLen = ((new Random()).nextInt(currentPi.size())); }
-        int firstIndex = ((new Random()).nextInt(currentPi.size() - subLen + 1)); // индекс первого элемента подпоследовательности в исходной последовательности
-        ArrayList<Integer> subCurrentPi = new ArrayList<>(); // вытаскиваем подпоследовательность
-        for (int i=firstIndex; i<firstIndex+subLen-1; i++){
-            subCurrentPi.add( currentPi.get(i) );
-        }
-        currentPi.removeAll(subCurrentPi);
-        int newPlace = ((new Random()).nextInt(currentPi.size())); // индекс первого элемента подпоследовательности в исходной последовательности
+        int newPlace = generatorDistribution.generateNormal(currentPi.size()); // индекс первого элемента подпоследовательности в исходной последовательности
         currentPi.addAll(newPlace, subCurrentPi);
         return currentPi;
     }
@@ -611,27 +652,83 @@ public class LocalSearch {
     // вытаскивает элемент и вставляет его в случайное место
     private ArrayList<Integer> insert( ArrayList<Integer> pi ) {
         //System.out.println("insert");
-        int indexChange = ((new Random()).nextInt(pi.size())); // индекс элемента который будем переставлять
-        ArrayList<Integer> currentPi = (ArrayList<Integer>) pi.clone();
+        ArrayList<Integer> currentPi = new ArrayList<>();
+        currentPi.addAll(pi);
+
+        ArrayList<Integer> invalidList = problem.getInvalidList(currentPi);
+
+        int indexChange = -1;  // индекс элемента который будем переставлять
+        if (invalidList != null && invalidList.size() != 0){
+            indexChange = invalidList.get( generatorDistribution.generateNormal(invalidList.size()));
+        } else { indexChange = generatorDistribution.generateNormal(currentPi.size());}
+
         Integer element = currentPi.get(indexChange);
         currentPi.remove(indexChange);
-        int p = ((new Random()).nextInt(currentPi.size())); // позиция куда вставим элемент
+
+        int p = generatorDistribution.generateNormal(currentPi.size()); // позиция куда вставим элемент
         currentPi.add(p, element);
+
         return currentPi;
     }
 
+    // вытаскивает элемент и вставляет его в случайное место
+    private ArrayList<Integer> insertK( ArrayList<Integer> pi ) {
+        //System.out.println("insertK");
+        int k = generatorDistribution.generatePoisson20(problem.getN()/2);
+        while (k < 2) {
+            k = generatorDistribution.generatePoisson20(problem.getN()/2);
+        }
 
+        ArrayList<Integer> currentPi = new ArrayList<>();
+        currentPi.addAll(pi);
+        for (int i = 0; i < k; i++) {
+            ArrayList<Integer> invalidList = problem.getInvalidList(currentPi);
+
+            int indexChange = -1;  // индекс элемента который будем переставлять
+            if (invalidList != null && invalidList.size() != 0 ){
+                indexChange = invalidList.get( generatorDistribution.generateNormal(invalidList.size()));
+            } else { indexChange = generatorDistribution.generateNormal(currentPi.size());}
+
+            Integer element = currentPi.get(indexChange);
+            currentPi.remove(indexChange);
+
+            int p = generatorDistribution.generateNormal(currentPi.size()); // позиция куда вставим элемент
+            currentPi.add(p, element);
+        }
+
+        return currentPi;
+    }
 
     // исследование одной из окрестностей с заданным количеством итераций
-    public double researchNeighborhood(int numberSteps, int numNeighborhood){
-        generateRandomPi();
+    public double researchNeighborhood( ArrayList<Integer> piStart, int numberSteps, int numNeighborhood){
+        pi.clear();
+        pi.addAll(piStart);
+        recPi.clear();
+        recPi.addAll(pi);
+        rec = problem.function(recPi);
         for (int i = 0; i < numberSteps; i++) {
             switch (numNeighborhood){
-                case (0): pi = swap(this.pi);
-                case (1): pi = invert(this.pi);
-                case (2): pi = shuffle(this.pi);
-                case (3): pi = insertP(this.pi);
-                case (4): pi = insert(this.pi);
+                case 0:
+                    pi = swap(this.pi);
+                    break;
+                case 1:
+                    pi = invert(this.pi);
+                    break;
+                case 2:
+                    pi = shuffle(this.pi);
+                    break;
+                case 3:
+                    pi = insertP(this.pi);
+                    break;
+                case 4:
+                    pi = insert(this.pi);
+                    break;
+                case 5:
+                    pi = swapK(this.pi);
+                    break;
+                case 6:
+                    pi = insertK(this.pi);
+                    break;
             }
             processPiRec(numNeighborhood);
         }
@@ -650,11 +747,11 @@ public class LocalSearch {
 
     // исследование всех окрестностей с одинаковым начальным решением
    public void researchAllNeighborhood(int numberSteps, int numberWrite) throws IOException {
-        String folder = "D:\\ярлыкиРабочегоСтола\\3course\\courseWork\\localSearch\\src\\main\\java\\org\\example\\\\problems\\exp\\";
-        try (BufferedWriter outResearch = new BufferedWriter(new FileWriter( folder + "researchNeighborhood.txt"))) {
+       String folder = "src\\main\\java\\org\\example\\problems\\confComb\\n_20\\p_25_30\\";
+        try (BufferedWriter outResearch = new BufferedWriter(new FileWriter( folder + "ResearchN.txt"))) {
             outResearch.write("Итерация Окрестность Погрешность");
 
-            generateRandomPi();
+            generateSolverPi();
             ArrayList<Integer> researchStartPi = (ArrayList<Integer>) pi.clone();
             for (int i = 0; i <= numberSteps; i++) {
                 pi = swap(this.pi);
@@ -674,7 +771,6 @@ public class LocalSearch {
                     outResearch.write(i + " invert " + getErrorRate());
                 }
             }
-
 
             setRandomPi(researchStartPi);
             for (int i = 0; i <= numberSteps; i++) {
@@ -706,6 +802,26 @@ public class LocalSearch {
                 }
             }
 
+            setRandomPi(researchStartPi);
+            for (int i = 0; i <= numberSteps; i++) {
+                pi = swapK(this.pi);
+                processPiRec(5);
+                if (i % numberWrite == 0) {
+                    outResearch.newLine();
+                    outResearch.write(i + " swapK " + getErrorRate());
+                }
+            }
+
+            setRandomPi(researchStartPi);
+            for (int i = 0; i <= numberSteps; i++) {
+                pi = insertK(this.pi);
+                processPiRec(6);
+                if (i % numberWrite == 0) {
+                    outResearch.newLine();
+                    outResearch.write(i + " insertK " + getErrorRate());
+                }
+            }
+
         }catch (IOException e) { System.out.println(e.getMessage());}
     }
 
@@ -713,7 +829,7 @@ public class LocalSearch {
    public double getErrorRate(){
        //System.out.println("getErrorRate");
        if (problem.decisionSolverOrTools < 0 ){ return -1; }
-        return 100*(problem.decisionSolverOrTools - rec)/(double)problem.decisionSolverOrTools;
+        return 100 * Math.abs(problem.decisionSolverOrTools - rec) / (double)problem.decisionSolverOrTools;
 
     }
 
@@ -721,7 +837,7 @@ public class LocalSearch {
    private void calculationP(){
         //System.out.println("calculationP");
         if ( !p.isEmpty() ) { p.clear(); }
-        for (int i=0; i<5; i++){
+        for (int i=0; i<neighborhoodCount; i++){
             p.add( i, (double) wins.get(i)/(double)sum );
         }
    }
