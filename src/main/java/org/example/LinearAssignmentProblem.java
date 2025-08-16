@@ -164,7 +164,7 @@ public class LinearAssignmentProblem extends AbstractAssignmentProblem {
         }
 
         // Фиксируем то, что мы решаем задачу на минимум или максимум
-        if (max == false) {
+        if (!max) {
             objective.setMinimization();
         } else {
             objective.setMaximization();

@@ -10,52 +10,27 @@ public class Main {
         String folderVL = "src\\main\\java\\org\\example\\problems\\volumeLimit\\n_20\\";
         String folderCC = "src\\main\\java\\org\\example\\problems\\confComb\\n_20\\p_25_30\\";
 
-        /*
-        ////// ДЛЯ ОТЛАДКИ
-        String folderCCtest = "src\\main\\java\\org\\example\\problems\\confComb\\n_5\\p_25_30\\";
-        for (int i = 0; i < 1; i++) {
-            File problemFile = new File(folderCCtest + "t" + i + ".txt");
-            AssignmentProblemConflictCombination problem = new AssignmentProblemConflictCombination(problemFile);
 
-            LocalSearch lc = new LocalSearch(problem);
-            lc.localSearchRestartStep1p1();
-
-        }
-        */
-
-
-        File file_result;
-
-
-        /// Решаем с конфликтными комбинациями
-        file_result = new File(folderCC + "LS1p1_cc.txt");
-        try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result, true))) {
-            //out.write("Task CountIteration Time_LS_1p1 Desigion_LS_1p1 Status_SCIP Time_SCIP Desigion_SCIP ErrorRate_LS_1p1\n");
-            out.newLine();
-            out.newLine();
+        File file_result = new File(folderCC + "LS_cc_Swap.txt");
+        /*try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result))) {
+            out.write("Task CountIteration Time_LS_1p1 Desigion_LS_1p1 Status_SCIP Time_SCIP Desigion_SCIP ErrorRate_LS_1p1\n");
         }
 
+         */
 
-
-
-        for (int i = 1; i < 30; i++) {
-
+        for (int i = 12; i < 30; i++) {
             File problemFile = new File(folderCC + "t" + i + ".txt");
-
             AssignmentProblemConflictCombination problem = new AssignmentProblemConflictCombination(problemFile);
 
             LocalSearch lc = new LocalSearch(problem);
-            lc.localSearchRestartStep1p1();
-
+            lc.localSearchSwap();
             problem.solveTask("SCIP", problem.time_limit_milliseconds);
-
             try(BufferedWriter out = new BufferedWriter(new FileWriter(file_result, true))) {
-                out.write(i + " " + lc.step + " " + lc.wall_time_ls + " " + lc.rec + " ");
-                out.write(problem.resultStatus + " " + problem.wall_time + " " + problem.decisionSolverOrTools + " " + lc.getErrorRate() + "\n");
+                out.write(i + " " + lc.step + " " + lc.wall_time_ls + " " + lc.rec + " "
+                        + problem.resultStatus + " " + problem.wall_time + " "
+                        + problem.decisionSolverOrTools + " " + lc.getErrorRate() + "\n");
 
             }
-            System.out.println("Task " + i + " solved!!!");
-
         }
     }
 }

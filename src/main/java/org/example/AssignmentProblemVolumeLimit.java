@@ -201,7 +201,8 @@ public class AssignmentProblemVolumeLimit extends AbstractAssignmentProblem {
                 indexElementAdd = -1; // Сбрасываем индекс
 
                 // Находим следующее минимальное значение
-                for (int k = 0; k < nExpand; k++) {
+                for (int k = 0; k < nExpand
+                        ; k++) {
                     if (!pi.contains(k) && costArrayExpand[i][k] < elementAdd) {
                         elementAdd = costArrayExpand[i][k];
                         indexElementAdd = k;

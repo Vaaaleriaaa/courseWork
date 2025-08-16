@@ -132,6 +132,11 @@ public class LocalSearch {
             recRestartPi.addAll(newRec);
             recRestart = problem.function(recPi);
         }
+
+        //// ВРЕМЕННЫЕ ВЫВОДЫ
+        System.out.println("Step " + step);
+        System.out.println("Rec " + rec);
+        //// ВРЕМЕННЫЕ ВЫВОДЫ
     }
 
     // обновление победителя
@@ -259,11 +264,6 @@ public class LocalSearch {
                 flagUpdate = processPiRec(6);
             }
         }
-
-        //// ВРЕМЕННЫЕ ВЫВОДЫ
-        System.out.println("Step " + step);
-        System.out.println("Rec " + rec);
-        //// ВРЕМЕННЫЕ ВЫВОДЫ
 
         return i;
     }
@@ -410,6 +410,30 @@ public class LocalSearch {
             processPiRec(0);
             step++;
         }
+        // Зафиксируем время окончания работы
+        endTime = System.currentTimeMillis();
+        wall_time_ls = endTime - startTime;
+    }
+
+    public void localSearchSwap() {
+        //System.out.println("localSearchRestartStep1p1");
+        // Зафиксируем время начала вычислений
+        startTime = System.currentTimeMillis();
+
+        //training();
+        //calculationP();
+
+        generateSmartPi();
+
+        //restart = false;
+        step = 0;
+
+        while ( step <= 2 * stepSuccess) {
+            pi = swap(this.pi);
+            processPiRec(0);
+            step++;
+        }
+
         // Зафиксируем время окончания работы
         endTime = System.currentTimeMillis();
         wall_time_ls = endTime - startTime;
@@ -746,8 +770,7 @@ public class LocalSearch {
     }
 
     // исследование всех окрестностей с одинаковым начальным решением
-   public void researchAllNeighborhood(int numberSteps, int numberWrite) throws IOException {
-       String folder = "src\\main\\java\\org\\example\\problems\\confComb\\n_20\\p_25_30\\";
+   public void researchAllNeighborhood(int numberSteps, int numberWrite, String folder) throws IOException {
         try (BufferedWriter outResearch = new BufferedWriter(new FileWriter( folder + "ResearchN.txt"))) {
             outResearch.write("Итерация Окрестность Погрешность");
 
@@ -836,9 +859,11 @@ public class LocalSearch {
     // вычисление вероятностей использования окрестностей
    private void calculationP(){
         //System.out.println("calculationP");
+
         if ( !p.isEmpty() ) { p.clear(); }
         for (int i=0; i<neighborhoodCount; i++){
-            p.add( i, (double) wins.get(i)/(double)sum );
+            //p.add( i, (double) wins.get(i)/(double)sum );
+            p.add(i, (double) 1./7.);
         }
    }
 
